@@ -29,8 +29,7 @@ def submit():
     if user_input:
         messages.append({"sender": "user", "text": user_input})
         local, recomendacoes = agente_processor.processar_texto(user_input)
-        informacoes = coordenador.coletar_informacoes(local, recomendacoes)
-        resposta_gemini = coordenador.gerar_resposta_com_gemini(local, informacoes)
+        resposta_gemini = coordenador.gerar_resposta_com_gemini(local, recomendacoes)
         messages.append({"sender": "bot", "text": resposta_gemini})
     return redirect(url_for('index'))
 
