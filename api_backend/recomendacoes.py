@@ -13,31 +13,51 @@ class AgenteProcessorTexto:
     def __init__(self):
         self.nlp = spacy.load("pt_core_news_sm")
         self.matcher = Matcher(self.nlp.vocab)
+
         self.matcher.add("RECOMENDACOES", [
-            [{"LOWER": {"IN": ["restaurante", "gastronomia", "comida"]}}, {"IS_ALPHA": True}],
-            [{"LOWER": "comida"}, {"LOWER": {"IN": ["japonesa", "mexicana"]}}],
+            [{"LOWER": {"IN": ["restaurante", "culinária", "comida", "gastronomia", "cozinha"]}}, {"IS_ALPHA": True}],
+            [{"LOWER": "comida"}, {"LOWER": {"IN": ["japonesa", "mexicana", "italiana", "brasileira", "francesa"]}}],
+            [{"LOWER": "culinária"}, {"LOWER": {"IN": ["local", "regional", "internacional"]}}],
+
             [{"LOWER": "visitar"}, {"IS_ALPHA": True}],
+            [{"LOWER": {"IN": ["museu", "galeria", "exposições", "obras"]}}, {"IS_ALPHA": True}],
+            [{"LOWER": "apreciar"}, {"IS_ALPHA": True}],
+
             [{"LOWER": "pontos"}, {"LOWER": "turísticos"}],
+            [{"LOWER": {"IN": ["vistas", "locais", "lugares", "ambientes"]}}, {"LOWER": {"IN": ["bonitos", "tranquilos"]}}],
+
+            [{"LOWER": "ao"}, {"LOWER": "ar"}, {"LOWER": "livre"}],
+            [{"LOWER": {"IN": ["parque", "praia", "trilha", "natureza"]}}, {"IS_ALPHA": True}],
         ])
-        self.stop_words = set(stopwords.words('portuguese'))
+
+        self.stop_words = {
+            'de', 'da', 'do', 'dos', 'das', 'e', 'para', 'o', 'a', 'os', 'as', 'um', 'uma', 'em', 'por', 'com',
+            'que', 'é', 'na', 'no', 'nos', 'nas', 'eu', 'meu', 'minha', 'seu', 'sua', 'seus', 'suas',
+            'vou', 'são', 'quero', 'estou', 'ele', 'ela', 'eles', 'elas', 'isso', 'aquilo', 'assim', 'como',
+            'também'
+            }
 
     def processar_texto(self, texto):
         doc = self.nlp(texto)
+
         local = None
         for ent in doc.ents:
             if ent.label_ in ["GPE", "LOC"]:
-                local = ent.text
-                break
+                if local is None or (ent.text.lower() != local.lower() and len(ent.text.split()) == 1):
+                    local = ent.text
+                    break
 
-        tokens_filtrados = [token for token in doc if token.text.lower() not in self.stop_words]
+        tokens_filtrados = [token for token in doc if token.text.lower() not in self.stop_words and not token.is_punct]
         doc_filtrado = self.nlp(" ".join([token.text for token in tokens_filtrados]))
 
         recomendacoes = []
         matches = self.matcher(doc_filtrado)
-        for _, start, end in matches:
+        for match_id, start, end in matches:
             span = doc_filtrado[start:end]
             recomendacoes.append(span.text)
-        return local, list(set(recomendacoes))
+
+        recomendacoes = list(set(recomendacoes))
+        return local, recomendacoes
     
 class AgenteYelp:
     def __init__(self, yelp_api_key, opencage_api_key):
