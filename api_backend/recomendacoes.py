@@ -117,6 +117,16 @@ class AgenteCidadeBrasil:
             return categorias
         return []
     
+class AgenteAtlasObscura:
+    def buscar_no_atlas_obscura(self, cidade):
+        url = f'https://www.atlasobscura.com/things-to-do/{cidade}-brazil/places'
+        response = requests.get(url)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.content, 'html.parser')
+            lugares = [place.text.strip() for place in soup.find_all('h3', class_="Card__heading")]
+            return lugares
+        return []
+    
 class AgenteCoordenador:
     def __init__(self, agentes):
         self.agentes = agentes
