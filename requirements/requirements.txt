@@ -1,0 +1,5 @@
+beautifulsoup4==4.11.1
+geopy==2.2.0
+nltk==3.7
+spacy==3.7.5
+pt-core-news-sm @ https://github.com/explosion/spacy-models/releases/download/pt_core_news_sm-3.7.0/pt_core_news_sm-3.7.0-py3-none-any.whl
