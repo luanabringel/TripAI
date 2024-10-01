@@ -163,7 +163,7 @@ class AgenteCoordenador:
 
         resposta = "Aqui estão suas recomendações com Gemini:\n"
         for chunk in response:
-            resposta += chunk.text
+            resposta += chunk.text.replace('*', '').replace('**', '') + '\n'
         return resposta
 
 
