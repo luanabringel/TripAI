@@ -6,6 +6,7 @@ from nltk.corpus import stopwords
 from geopy.geocoders import OpenCage
 from bs4 import BeautifulSoup
 import google.generativeai as genai
+from markupsafe import Markup
 
 nltk.download('stopwords')
 
@@ -177,16 +178,17 @@ class AgenteCoordenador:
 
     def gerar_resposta_com_gemini(self, cidade, preferencias):
         locais = self.coletar_informacoes(cidade, preferencias)
-        input_text = f"Faça uma recomendação dos seguintes locais em {cidade}: {', '.join(locais)}. O usuário gostaria de experimentar {', '.join(preferencias)}."
+        input_text = f"Ajeita essas recomendações de locais na cidade: {cidade}, recomendações: {', '.join(locais)}. O usuário gostaria de experimentar {', '.join(preferencias)}."
         
         model = genai.GenerativeModel("gemini-1.5-flash")
         response = model.generate_content(input_text, stream=True)
 
-        resposta_final = "Aqui estão suas recomendações com Gemini:\n"
+        resposta = "Aqui estão suas recomendações com Gemini:\n"
         for chunk in response:
-            try:
-                resposta_final += chunk.text.replace('*', '').replace('**', '') + '\n'
-            except AttributeError as e:
-                print(f"Erro ao acessar finish_message: {e}")
-
-        return resposta_final
+            resposta += chunk.text.replace('*', '').replace('**', '').replace('##', '')
+            if resposta[-1] in [".", ":"]:
+                resposta += '\n'
+        
+        resposta_html = ''.join([f'<p>{paragrafo.strip()}</p>' for paragrafo in resposta.split('\n') if paragrafo.strip()])
+    
+        return Markup(resposta_html)
