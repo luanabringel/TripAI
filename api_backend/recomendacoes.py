@@ -100,3 +100,19 @@ class AgenteFoursquare:
       except Exception as e:
           print(f"Ocorreu um erro: {e}")
           return None
+
+class AgenteCidadeBrasil:
+    def __init__(self):
+        self.url_base = 'https://www.cidade-brasil.com.br'
+
+    def buscar_no_cidade_brasil(self, cidade):
+        url = f'{self.url_base}/municipio-{cidade}.html'
+        response = requests.get(url)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.content, 'html.parser')
+            categorias = []
+            for section in soup.find_all('div', class_='ctn-loisir-illustration'):
+                for category in section.find_all('a'):
+                    categorias.append(category.text.strip())
+            return categorias
+        return []
