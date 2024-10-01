@@ -68,31 +68,27 @@ class AgenteFoursquare:
   def __init__(self, foursquare_api_key):
         self.foursquare_api_key = foursquare_api_key
 
-
-  # Função para buscar locais com base em preferências e destino
   def buscar_no_foursquare(self, destino, preferencias):
       url = "https://api.foursquare.com/v3/places/search"
 
-      # Parâmetros da busca
       params = {
-          "query": preferencias,  # Preferências do usuário (ex.: "restaurant", "coffee shop")
-          "near": destino,        # Destino (ex.: cidade como "São Paulo")
-          "limit": 10,            # Limite de resultados
-          "sort": "relevance"     # Ordenar por relevância
+          "query": preferencias,
+          "near": destino,
+          "limit": 10,
+          "sort": "relevance"
       }
 
       headers = {
           "Accept": "application/json",
-          "Authorization": f'{self.foursquare_api_key}' # Autorização com API Key
+          "Authorization": f'{self.foursquare_api_key}'
       }
 
       try:
-          # Fazendo a requisição à API do Foursquare
           response = requests.get(url, params=params, headers=headers)
-          response.raise_for_status()  # Levanta um erro para códigos de status de erro
+          response.raise_for_status()
 
           locais = response.json()
-          return locais.get('results', [])  # Retorna a lista de resultados, ou lista vazia se não houver
+          return locais.get('results', [])
 
       except requests.exceptions.HTTPError as err:
           print(f"Erro na requisição: {err}")
