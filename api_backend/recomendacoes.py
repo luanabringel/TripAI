@@ -116,3 +116,57 @@ class AgenteCidadeBrasil:
                     categorias.append(category.text.strip())
             return categorias
         return []
+    
+class AgenteCoordenador:
+    def __init__(self, agentes):
+        self.agentes = agentes
+
+    def coletar_informacoes(self, cidade, preferencias):
+        informacoes = {}
+        for nome_agente, agente in self.agentes.items():
+            if nome_agente == 'Cidade Brasil':
+                resultados = agente.buscar_no_cidade_brasil(cidade)
+            elif nome_agente == 'Atlas Obscura':
+                resultados = agente.buscar_no_atlas_obscura(cidade)
+            elif nome_agente == 'Yelp':
+                resultados = agente.buscar_no_yelp(cidade, preferencias)
+            else:
+                resultados = agente.buscar_no_foursquare(cidade, preferencias)
+            informacoes[nome_agente] = resultados
+        return informacoes
+
+    def gerar_resposta(self, informacoes):
+        resposta = "Aqui estão suas recomendações:\n"
+        for fonte, locais in informacoes.items():
+            resposta += f"Fonte: {fonte}\n"
+            if locais:
+              for local in locais:
+                  if isinstance(local, dict):
+                      resposta += f"- {local.get('name', 'Local não informado')} em {local.get('location', 'Localização não informada')}\n"
+                  else:
+                      resposta += f"- {local}\n"
+        return resposta
+
+
+nlp = spacy.load("pt_core_news_sm")
+if __name__ == "__main__":
+    agente_processor = AgenteProcessorTexto()
+    agente_yelp = AgenteYelp(yelp_api_key='EVcoTuv6Im8ApisNLkhYcG68F0U1-9PhtC9FYuXQEhGcs9wxs5dAUDptJVcCQKci8lKmT96IavnLb-n_KCh8GXP3EiBC1pFLeLoJW2fBceq_Ln0CzbHBVcaLU-X4ZnYx',
+                             opencage_api_key='755a7d3d5d8743728e809342a7291d5a')
+    agente_foursquare = AgenteFoursquare(foursquare_api_key='fsq3MZABriF086Ggov3imwdz1lULdW/uvYXFiwr/Rz9pmOo=')
+    agente_cidade_brasil = AgenteCidadeBrasil()
+    agente_atlas_obscura = AgenteAtlasObscura()
+
+    coordenador = AgenteCoordenador({
+        'Yelp': agente_yelp,
+        'Foursquare': agente_foursquare,
+        'Cidade Brasil': agente_cidade_brasil,
+        'Atlas Obscura': agente_atlas_obscura
+    })
+
+    # Exemplo de uso
+    texto_usuario = "Quero visitar João Pessoa e experimentar comida japonesa."
+    local, recomendacoes = agente_processor.processar_texto(texto_usuario)
+    informacoes = coordenador.coletar_informacoes(local, recomendacoes)
+    resposta = coordenador.gerar_resposta(informacoes)
+    print(resposta)
