@@ -37,3 +37,29 @@ class AgenteProcessorTexto:
             span = doc_filtrado[start:end]
             recomendacoes.append(span.text)
         return local, list(set(recomendacoes))
+    
+class AgenteYelp:
+    def __init__(self, yelp_api_key, opencage_api_key):
+        self.yelp_api_key = yelp_api_key
+        self.opencage_api_key = opencage_api_key
+
+    def buscar_no_yelp(self, cidade, categorias):
+        geolocator = OpenCage(api_key=self.opencage_api_key)
+        location = geolocator.geocode(cidade)
+        if location:
+            latitude, longitude = location.latitude, location.longitude
+        else:
+            return None
+
+        headers = {'Authorization': f'Bearer {self.yelp_api_key}'}
+        resultados = []
+        for categoria in categorias:
+            url = 'https://api.yelp.com/v3/businesses/search'
+            params = {'term': categoria, 'latitude': latitude, 'longitude': longitude, 'limit': 10}
+            try:
+                response = requests.get(url, headers=headers, params=params)
+                if response.status_code == 200:
+                    resultados += response.json().get('businesses', [])
+            except requests.exceptions.RequestException as e:
+                print(f"Erro no Yelp: {e}")
+        return resultados
