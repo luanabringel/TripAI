@@ -177,12 +177,16 @@ class AgenteCoordenador:
 
     def gerar_resposta_com_gemini(self, cidade, preferencias):
         locais = self.coletar_informacoes(cidade, preferencias)
-        input_text = f"Recomende os seguintes locais em {cidade}: {', '.join(locais)}. O usuário gostaria de experimentar {', '.join(preferencias)}."
+        input_text = f"Faça uma recomendação dos seguintes locais em {cidade}: {', '.join(locais)}. O usuário gostaria de experimentar {', '.join(preferencias)}."
         
         model = genai.GenerativeModel("gemini-1.5-flash")
         response = model.generate_content(input_text, stream=True)
 
-        resposta = "Aqui estão suas recomendações com Gemini:\n"
+        resposta_final = "Aqui estão suas recomendações com Gemini:\n"
         for chunk in response:
-            resposta += chunk.text.replace('*', '').replace('**', '') + '\n'
-        return resposta
+            try:
+                resposta_final += chunk.text.replace('*', '').replace('**', '') + '\n'
+            except AttributeError as e:
+                print(f"Erro ao acessar finish_message: {e}")
+
+        return resposta_final
