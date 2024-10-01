@@ -5,6 +5,7 @@ from spacy.matcher import Matcher
 from nltk.corpus import stopwords
 from geopy.geocoders import OpenCage
 from bs4 import BeautifulSoup
+import google.generativeai as genai
 
 nltk.download('stopwords')
 
@@ -153,6 +154,18 @@ class AgenteCoordenador:
                       resposta += f"- {local}\n"
         return resposta
 
+    def gerar_resposta_com_gemini(self, cidade, preferencias):
+        locais = self.coletar_informacoes(cidade, preferencias)
+        input_text = f"Recomende os seguintes locais em {cidade}: {', '.join(locais)}. O usuário gostaria de experimentar {', '.join(preferencias)}."
+        
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        response = model.generate_content(input_text, stream=True)
+
+        resposta = "Aqui estão suas recomendações com Gemini:\n"
+        for chunk in response:
+            resposta += chunk.text
+        return resposta
+
 
 nlp = spacy.load("pt_core_news_sm")
 if __name__ == "__main__":
@@ -175,4 +188,5 @@ if __name__ == "__main__":
     local, recomendacoes = agente_processor.processar_texto(texto_usuario)
     informacoes = coordenador.coletar_informacoes(local, recomendacoes)
     resposta = coordenador.gerar_resposta(informacoes)
+    resposta_gemini = coordenador.gerar_resposta_com_gemini(informacoes)
     print(resposta)
