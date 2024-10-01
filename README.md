@@ -1,4 +1,4 @@
-<h1 align="center">TripAI :plane: :island: </h1>
+<h1 align="center">TripAI :airplane: :isle: </h1>
 
 Projeto de construção de um sistema multiagente para recomendações de locais, com base nas preferências do usuário e o destino desejado.
 
