@@ -1,6 +1,7 @@
 <h1 align="center">TripAI :airplane: 🏝️ </h1>
 
 Projeto de construção de um sistema multiagente para recomendações de locais, com base nas preferências do usuário e o destino desejado.
+Diga o seu destino e nós iremos recomendar lugares que combinam com você! Este sistema utiliza uma arquitetura de multiagentes para analisar suas preferências pessoais e fornecer sugestões personalizadas de locais. Ao integrar dados de várias APIs, como Yelp e Foursquare, e considerar fatores como interesses, atividades e características do destino, desejamos que você encontre experiências que realmente ressoem com seu estilo.
 
 ### Índice
 
@@ -60,4 +61,4 @@ python app.py
 ------
 #### Status do Projeto
 
-Desenvolvido ao final da disciplina de Processamento de Linguagem Natural - Prof. Leando Balby.
+Desenvolvido ao final da disciplina de Processamento de Linguagem Natural - Prof. Leandro Balby.
