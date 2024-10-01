@@ -9,6 +9,8 @@ Diga o seu destino e nós iremos recomendar lugares que combinam com você! Este
 
 [Inicialização da aplicação](#Iniciar-a-aplicação)
 
+[Documentação do Projeto](#Documentação-do-Projeto)
+
 [Status do Projeto](#status-do-Projeto)
 
 
@@ -57,7 +59,14 @@ Para iniciar a aplicação, usar os seguintes comandos:
 ```
 python app.py
 ```
+------
+### Documentação do Projeto
 
+Para entender melhor como foi desenvolvido e o objetivo do projeto, por favor, leia o documento abaixo:
+
+```
+https://docs.google.com/document/d/181PjTpi2p64JFqyvcroRWFLdVAZjwsdgfiSmtaQx0E4/edit?usp=sharing
+```
 ------
 #### Status do Projeto
 
