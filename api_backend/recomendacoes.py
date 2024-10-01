@@ -28,6 +28,8 @@ class AgenteProcessorTexto:
 
             [{"LOWER": "ao"}, {"LOWER": "ar"}, {"LOWER": "livre"}],
             [{"LOWER": {"IN": ["parque", "praia", "trilha", "natureza"]}}, {"IS_ALPHA": True}],
+            [{"LOWER": "bares"}],
+            [{"LOWER": {"IN": ["pub", "boteco", "balada", "nightclub"]}}],
         ])
 
         self.stop_words = {
@@ -35,7 +37,7 @@ class AgenteProcessorTexto:
             'que', 'é', 'na', 'no', 'nos', 'nas', 'eu', 'meu', 'minha', 'seu', 'sua', 'seus', 'suas',
             'vou', 'são', 'quero', 'estou', 'ele', 'ela', 'eles', 'elas', 'isso', 'aquilo', 'assim', 'como',
             'também'
-            }
+        }
 
     def processar_texto(self, texto):
         doc = self.nlp(texto)
@@ -43,9 +45,8 @@ class AgenteProcessorTexto:
         local = None
         for ent in doc.ents:
             if ent.label_ in ["GPE", "LOC"]:
-                if local is None or (ent.text.lower() != local.lower() and len(ent.text.split()) == 1):
+                if local is None or (len(ent.text.split()) > 1 or ent.text.istitle()):
                     local = ent.text
-                    break
 
         tokens_filtrados = [token for token in doc if token.text.lower() not in self.stop_words and not token.is_punct]
         doc_filtrado = self.nlp(" ".join([token.text for token in tokens_filtrados]))
@@ -185,28 +186,3 @@ class AgenteCoordenador:
         for chunk in response:
             resposta += chunk.text.replace('*', '').replace('**', '') + '\n'
         return resposta
-
-
-nlp = spacy.load("pt_core_news_sm")
-if __name__ == "__main__":
-    agente_processor = AgenteProcessorTexto()
-    agente_yelp = AgenteYelp(yelp_api_key='EVcoTuv6Im8ApisNLkhYcG68F0U1-9PhtC9FYuXQEhGcs9wxs5dAUDptJVcCQKci8lKmT96IavnLb-n_KCh8GXP3EiBC1pFLeLoJW2fBceq_Ln0CzbHBVcaLU-X4ZnYx',
-                             opencage_api_key='755a7d3d5d8743728e809342a7291d5a')
-    agente_foursquare = AgenteFoursquare(foursquare_api_key='fsq3MZABriF086Ggov3imwdz1lULdW/uvYXFiwr/Rz9pmOo=')
-    agente_cidade_brasil = AgenteCidadeBrasil()
-    agente_atlas_obscura = AgenteAtlasObscura()
-
-    coordenador = AgenteCoordenador({
-        'Yelp': agente_yelp,
-        'Foursquare': agente_foursquare,
-        'Cidade Brasil': agente_cidade_brasil,
-        'Atlas Obscura': agente_atlas_obscura
-    })
-
-    # Exemplo de uso
-    texto_usuario = "Quero visitar João Pessoa e experimentar comida japonesa."
-    local, recomendacoes = agente_processor.processar_texto(texto_usuario)
-    informacoes = coordenador.coletar_informacoes(local, recomendacoes)
-    resposta = coordenador.gerar_resposta(informacoes)
-    resposta_gemini = coordenador.gerar_resposta_com_gemini(informacoes)
-    print(resposta)
