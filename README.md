@@ -50,6 +50,16 @@ python -m spacy download pt_core_news_sm
 ou
 
 !python -m spacy download pt_core_news_sm
+
+# 6. Instalar o Flask assíncrono
+
+pip install flask[async]
+
+# 7. Instalar o framework SPADE
+
+pip install spade
+
+por favor, ignore o erro de conflito do Jinja2.
 ```
 ------
 #### Iniciar a aplicação
