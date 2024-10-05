@@ -1,194 +1,304 @@
-import spacy
-import nltk
+import asyncio
+from spade.agent import Agent
+from spade.behaviour import OneShotBehaviour
+from spade.message import Message
+from spade.template import Template
+import json
 import requests
+import spacy
 from spacy.matcher import Matcher
-from nltk.corpus import stopwords
-from geopy.geocoders import OpenCage
 from bs4 import BeautifulSoup
 import google.generativeai as genai
+from geopy.geocoders import OpenCage
 from markupsafe import Markup
+import api_backend.config as config
 
-nltk.download('stopwords')
 
-class AgenteProcessorTexto:
-    def __init__(self):
-        self.nlp = spacy.load("pt_core_news_sm")
-        self.matcher = Matcher(self.nlp.vocab)
+class AgenteProcessorTexto(Agent):
+    class ProcessarTextoBehaviour(OneShotBehaviour):
+        def __init__(self, texto):
+            super().__init__()
+            self.texto = texto
 
-        self.matcher.add("RECOMENDACOES", [
-            [{"LOWER": {"IN": ["restaurante", "culinária", "comida", "gastronomia", "cozinha"]}}, {"IS_ALPHA": True}],
-            [{"LOWER": "comida"}, {"LOWER": {"IN": ["japonesa", "mexicana", "italiana", "brasileira", "francesa"]}}],
-            [{"LOWER": "culinária"}, {"LOWER": {"IN": ["local", "regional", "internacional"]}}],
+        async def run(self):
+            nlp = spacy.load("pt_core_news_sm")
+            matcher = Matcher(nlp.vocab)
+            matcher.add("RECOMENDACOES", [
+                [{"LOWER": {"IN": ["restaurante", "culinária", "comida", "gastronomia", "cozinha"]}}, {"IS_ALPHA": True}],
+                [{"LOWER": "comida"}, {"LOWER": {"IN": ["japonesa", "mexicana", "italiana", "brasileira", "francesa"]}}],
+                [{"LOWER": "culinária"}, {"LOWER": {"IN": ["local", "regional", "internacional"]}}],
+                [{"LOWER": "visitar"}, {"IS_ALPHA": True}],
+                [{"LOWER": {"IN": ["museu", "galeria", "exposições", "obras"]}}, {"IS_ALPHA": True}],
+                [{"LOWER": "pontos"}, {"LOWER": "turísticos"}],
+                [{"LOWER": {"IN": ["vistas", "locais", "lugares", "ambientes"]}}, {"LOWER": {"IN": ["bonitos", "tranquilos"]}}],
+                [{"LOWER": "ao"}, {"LOWER": "ar"}, {"LOWER": "livre"}],
+                [{"LOWER": {"IN": ["parque", "praia", "trilha", "natureza"]}}, {"IS_ALPHA": True}],
+                [{"LOWER": "bares"}],
+                [{"LOWER": {"IN": ["pub", "boteco", "balada", "nightclub"]}}],
+            ])
 
-            [{"LOWER": "visitar"}, {"IS_ALPHA": True}],
-            [{"LOWER": {"IN": ["museu", "galeria", "exposições", "obras"]}}, {"IS_ALPHA": True}],
-            [{"LOWER": "apreciar"}, {"IS_ALPHA": True}],
+            doc = nlp(self.texto)
+            stop_words = set(spacy.lang.pt.stop_words.STOP_WORDS)
+            tokens_filtrados = [token for token in doc if token.text.lower() not in stop_words and not token.is_punct]
+            doc_filtrado = nlp(" ".join([token.text for token in tokens_filtrados]))
 
-            [{"LOWER": "pontos"}, {"LOWER": "turísticos"}],
-            [{"LOWER": {"IN": ["vistas", "locais", "lugares", "ambientes"]}}, {"LOWER": {"IN": ["bonitos", "tranquilos"]}}],
+            recomendacoes = []
+            matches = matcher(doc_filtrado)
+            for match_id, start, end in matches:
+                span = doc_filtrado[start:end]
+                recomendacoes.append(span.text)
 
-            [{"LOWER": "ao"}, {"LOWER": "ar"}, {"LOWER": "livre"}],
-            [{"LOWER": {"IN": ["parque", "praia", "trilha", "natureza"]}}, {"IS_ALPHA": True}],
-            [{"LOWER": "bares"}],
-            [{"LOWER": {"IN": ["pub", "boteco", "balada", "nightclub"]}}],
-        ])
+            recomendacoes = list(set(recomendacoes))
 
-        self.stop_words = {
-            'de', 'da', 'do', 'dos', 'das', 'e', 'para', 'o', 'a', 'os', 'as', 'um', 'uma', 'em', 'por', 'com',
-            'que', 'é', 'na', 'no', 'nos', 'nas', 'eu', 'meu', 'minha', 'seu', 'sua', 'seus', 'suas',
-            'vou', 'são', 'quero', 'estou', 'ele', 'ela', 'eles', 'elas', 'isso', 'aquilo', 'assim', 'como',
-            'também'
-        }
+            local = None
+            for ent in doc.ents:
+                if ent.label_ in ["GPE", "LOC"]:
+                    if local is None or (len(ent.text.split()) > 1 or ent.text.istitle()):
+                        local = ent.text
 
-    def processar_texto(self, texto):
-        doc = self.nlp(texto)
+            msg_atlas_obscura = Message(to="agente_atlas_obscura@localhost")
+            msg_atlas_obscura.body = json.dumps({"cidade": local, "preferencias": recomendacoes}, ensure_ascii=False)
+            msg_atlas_obscura.set_metadata("performative", "inform")
+            msg_atlas_obscura.set_metadata("thread", "atlas_obscura_request")
+            await self.send(msg_atlas_obscura)
 
-        local = None
-        for ent in doc.ents:
-            if ent.label_ in ["GPE", "LOC"]:
-                if local is None or (len(ent.text.split()) > 1 or ent.text.istitle()):
-                    local = ent.text
+            msg = Message(to="agente_yelp@localhost")
+            msg.body = json.dumps({"cidade": local, "preferencias": recomendacoes}, ensure_ascii=False)
+            msg.set_metadata("performative", "inform")
+            msg.set_metadata("thread", "yelp_request")
+            await self.send(msg)
 
-        tokens_filtrados = [token for token in doc if token.text.lower() not in self.stop_words and not token.is_punct]
-        doc_filtrado = self.nlp(" ".join([token.text for token in tokens_filtrados]))
+            msg_foursquare = Message(to="agente_foursquare@localhost")
+            msg_foursquare.body = json.dumps({"cidade": local, "preferencias": recomendacoes}, ensure_ascii=False)
+            msg_foursquare.set_metadata("performative", "inform")
+            msg_foursquare.set_metadata("thread", "foursquare_request")
+            await self.send(msg_foursquare)
 
-        recomendacoes = []
-        matches = self.matcher(doc_filtrado)
-        for match_id, start, end in matches:
-            span = doc_filtrado[start:end]
-            recomendacoes.append(span.text)
+            msg_cidade_brasil = Message(to="agente_cidade_brasil@localhost")
+            msg_cidade_brasil.body = json.dumps({"cidade": local, "preferencias": recomendacoes}, ensure_ascii=False)
+            msg_cidade_brasil.set_metadata("performative", "inform")
+            msg_cidade_brasil.set_metadata("thread", "cidade_brasil_request")
+            await self.send(msg_cidade_brasil)
 
-        recomendacoes = list(set(recomendacoes))
-        return local, recomendacoes
-    
-class AgenteYelp:
-    def __init__(self, yelp_api_key, opencage_api_key):
-        self.yelp_api_key = yelp_api_key
-        self.opencage_api_key = opencage_api_key
 
-    def buscar_no_yelp(self, cidade, categorias):
-        geolocator = OpenCage(api_key=self.opencage_api_key)
-        location = geolocator.geocode(cidade)
-        if location:
-            latitude, longitude = location.latitude, location.longitude
-        else:
-            return None
+    async def setup(self):
+        processar_behaviour = self.ProcessarTextoBehaviour(self.texto_param)
+        template = Template()
+        template.set_metadata("performative", "inform")
+        template.set_metadata("thread", "processar_texto_request")
+        self.add_behaviour(processar_behaviour, template)
 
-        headers = {'Authorization': f'Bearer {self.yelp_api_key}'}
-        resultados = []
-        for categoria in categorias:
-            url = 'https://api.yelp.com/v3/businesses/search'
-            params = {'term': categoria, 'latitude': latitude, 'longitude': longitude, 'limit': 10}
-            try:
-                response = requests.get(url, headers=headers, params=params)
+
+class AgenteAtlasObscura(Agent):
+    class AtlasObscuraBehaviour(OneShotBehaviour):
+        async def run(self):
+            msg = await self.receive(timeout=10)
+            if msg:
+                dados = json.loads(msg.body)
+                cidade = dados['cidade'].replace(" ", "-").lower()
+
+                url = f'https://www.atlasobscura.com/things-to-do/{cidade}-brazil/places'
+                
+                response = requests.get(url)
+                
                 if response.status_code == 200:
-                    resultados += response.json().get('businesses', [])
-            except requests.exceptions.RequestException as e:
-                print(f"Erro no Yelp: {e}")
-        return resultados
+                    soup = BeautifulSoup(response.content, 'html.parser')
+                    locais = [item.text.strip() for item in soup.find_all('div', class_='CardText')]
+                    
+                    msg_resposta = Message(to="agente_coordenador@localhost")
+                    msg_resposta.body = json.dumps({
+                        "source": "Atlas Obscura",
+                        "data": locais
+                    })
+                    msg_resposta.set_metadata("performative", "inform")
+                    msg_resposta.set_metadata("thread", "coordenador_request")
+                    await self.send(msg_resposta)
 
-class AgenteFoursquare:
-  def __init__(self, foursquare_api_key):
-        self.foursquare_api_key = foursquare_api_key
+                       
+                    
+    async def setup(self):
+        atlas_obscura_behaviour = self.AtlasObscuraBehaviour()
+        template = Template()
+        template.set_metadata("performative", "inform")
+        template.set_metadata("thread", "atlas_obscura_request")
+        self.add_behaviour(atlas_obscura_behaviour, template)
+        
 
-  def buscar_no_foursquare(self, destino, preferencias):
-      url = "https://api.foursquare.com/v3/places/search"
+class AgenteYelp(Agent):
+    class YelpBehaviour(OneShotBehaviour):
+        def __init__(self):
+            super().__init__()
+            self.yelp_api_key = 'EVcoTuv6Im8ApisNLkhYcG68F0U1-9PhtC9FYuXQEhGcs9wxs5dAUDptJVcCQKci8lKmT96IavnLb-n_KCh8GXP3EiBC1pFLeLoJW2fBceq_Ln0CzbHBVcaLU-X4ZnYx'
+            self.opencage_api_key = '755a7d3d5d8743728e809342a7291d5a'
 
-      params = {
-          "query": preferencias,
-          "near": destino,
-          "limit": 10,
-          "sort": "relevance"
-      }
+        async def run(self):
+            msg = await self.receive(timeout=10)
+            if msg:
+                dados = json.loads(msg.body)
+                cidade = dados['cidade']
+                preferencias = dados['preferencias']
 
-      headers = {
-          "Accept": "application/json",
-          "Authorization": f'{self.foursquare_api_key}'
-      }
+                geolocator = OpenCage(api_key=self.opencage_api_key)
+                location = geolocator.geocode(cidade)
+                if location:
+                    latitude, longitude = location.latitude, location.longitude
 
-      try:
-          response = requests.get(url, params=params, headers=headers)
-          response.raise_for_status()
+                    headers = {'Authorization': f'Bearer {self.yelp_api_key}'}
+                    resultados = []
+                    for categoria in preferencias:
+                        url = 'https://api.yelp.com/v3/businesses/search'
+                        params = {'term': categoria, 'latitude': latitude, 'longitude': longitude, 'limit': 10}
+                        response = requests.get(url, headers=headers, params=params)
+                        if response.status_code == 200:
+                            resultados += response.json().get('businesses', [])
 
-          locais = response.json()
-          return locais.get('results', [])
+                    msg_resposta = Message(to="agente_coordenador@localhost")
+                    msg_resposta.body = json.dumps({"Yelp": resultados})
+                    msg_resposta.set_metadata("performative", "inform")
+                    msg_resposta.set_metadata("thread", "coordenador_request")
+                    await self.send(msg_resposta)
 
-      except requests.exceptions.HTTPError as err:
-          print(f"Erro na requisição: {err}")
-          return None
-      except Exception as e:
-          print(f"Ocorreu um erro: {e}")
-          return None
+                    msg_resposta = Message(to="agente_coordenador@localhost")
+                    msg_resposta.body = json.dumps({
+                        "source": "Yelp",
+                        "data": resultados
+                    })
+                    msg_resposta.set_metadata("performative", "inform")
+                    msg_resposta.set_metadata("thread", "coordenador_request")
+                    await self.send(msg_resposta)
 
-class AgenteCidadeBrasil:
-    def __init__(self):
-        self.url_base = 'https://www.cidade-brasil.com.br'
 
-    def buscar_no_cidade_brasil(self, cidade):
-        url = f'{self.url_base}/municipio-{cidade}.html'
-        response = requests.get(url)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.content, 'html.parser')
-            categorias = []
-            for section in soup.find_all('div', class_='ctn-loisir-illustration'):
-                for category in section.find_all('a'):
-                    categorias.append(category.text.strip())
-            return categorias
-        return []
-    
-class AgenteAtlasObscura:
-    def buscar_no_atlas_obscura(self, cidade):
-        url = f'https://www.atlasobscura.com/things-to-do/{cidade}-brazil/places'
-        response = requests.get(url)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.content, 'html.parser')
-            lugares = [place.text.strip() for place in soup.find_all('h3', class_="Card__heading")]
-            return lugares
-        return []
-    
-class AgenteCoordenador:
-    def __init__(self, agentes):
-        self.agentes = agentes
+    async def setup(self):
+        request_behaviour = self.YelpBehaviour()
+        template = Template()
+        template.set_metadata("performative", "inform")
+        template.set_metadata("thread", "yelp_request")
+        self.add_behaviour(request_behaviour, template)
 
-    def coletar_informacoes(self, cidade, preferencias):
-        informacoes = {}
-        for nome_agente, agente in self.agentes.items():
-            if nome_agente == 'Cidade Brasil':
-                resultados = agente.buscar_no_cidade_brasil(cidade)
-            elif nome_agente == 'Atlas Obscura':
-                resultados = agente.buscar_no_atlas_obscura(cidade)
-            elif nome_agente == 'Yelp':
-                resultados = agente.buscar_no_yelp(cidade, preferencias)
+
+class AgenteFoursquare(Agent):
+    class FoursquareBehaviour(OneShotBehaviour):
+        def __init__(self):
+            super().__init__()
+            self.foursquare_api_key = 'fsq3MZABriF086Ggov3imwdz1lULdW/uvYXFiwr/Rz9pmOo='
+
+        async def run(self):
+            msg = await self.receive(timeout=10)
+            if msg:
+                dados = json.loads(msg.body)
+                cidade = dados['cidade']
+                preferencias = dados['preferencias']
+
+                url = "https://api.foursquare.com/v3/places/search"
+                params = {"query": preferencias, "near": cidade, "limit": 10, "sort": "relevance"}
+                headers = {"Accept": "application/json", "Authorization": f'{self.foursquare_api_key}'}
+                response = requests.get(url, params=params, headers=headers)
+
+                locais = response.json().get('results', [])
+
+                msg_resposta = Message(to="agente_coordenador@localhost")
+                msg_resposta.body = json.dumps({
+                    "source": "Foursquare",
+                    "data": locais
+                })
+                msg_resposta.set_metadata("performative", "inform")
+                msg_resposta.set_metadata("thread", "coordenador_request")
+                await self.send(msg_resposta)
+
+    async def setup(self):
+        foursquare_behaviour = self.FoursquareBehaviour()
+        template = Template()
+        template.set_metadata("performative", "inform")
+        template.set_metadata("thread", "foursquare_request")
+        self.add_behaviour(foursquare_behaviour, template)
+
+
+class AgenteCidadeBrasil(Agent):
+    class CidadeBrasilBehaviour(OneShotBehaviour):
+        async def run(self):
+            msg = await self.receive(timeout=10)
+            if msg:
+                dados = json.loads(msg.body)
+                cidade = dados['cidade']
+
+                url = f'https://www.cidade-brasil.com.br/municipio-{cidade}.html'
+                response = requests.get(url)
+                if response.status_code == 200:
+                    soup = BeautifulSoup(response.content, 'html.parser')
+                    categorias = []
+                    for section in soup.find_all('div', class_='ctn-loisir-illustration'):
+                        for category in section.find_all('a'):
+                            categorias.append(category.text.strip())
+
+                    msg_resposta = Message(to="agente_coordenador@localhost")
+                    msg_resposta.body = json.dumps({
+                        "source": "Cidade Brasil",
+                        "data": categorias
+                    })
+                    msg_resposta.set_metadata("performative", "inform")
+                    msg_resposta.set_metadata("thread", "coordenador_request")
+                    await self.send(msg_resposta)
+                        
+
+    async def setup(self):
+        cidade_brasil_behaviour = self.CidadeBrasilBehaviour()
+        template = Template()
+        template.set_metadata("performative", "inform")
+        template.set_metadata("thread", "cidade_brasil_request")
+        self.add_behaviour(cidade_brasil_behaviour, template)
+
+
+class AgenteCoordenador(Agent):
+    class CoordenadorBehaviour(OneShotBehaviour):
+        async def run(self):
+            tasks = [
+                self.receive_message("Atlas Obscura", timeout=20),
+                self.receive_message("Yelp", timeout=20),
+                self.receive_message("Foursquare", timeout=20),
+                self.receive_message("Cidade Brasil", timeout=20)
+            ]
+            
+            messages = await asyncio.gather(*tasks)
+
+            dados_finais = {source: msg for source, msg in zip(["Atlas Obscura", "Yelp", "Foursquare", "Cidade Brasil"], messages) if msg}
+
+            resposta = await self.gerar_recomendacoes(dados_finais)
+            config.resposta_gerada = resposta
+
+        async def receive_message(self, source_name, timeout):
+            msg = await self.receive(timeout=timeout)
+            if msg:
+                return json.loads(msg.body)
             else:
-                resultados = agente.buscar_no_foursquare(cidade, preferencias)
-            informacoes[nome_agente] = resultados
-        return informacoes
+                return None
 
-    def gerar_resposta(self, informacoes):
-        resposta = "Aqui estão suas recomendações:\n"
-        for fonte, locais in informacoes.items():
-            resposta += f"Fonte: {fonte}\n"
-            if locais:
-              for local in locais:
-                  if isinstance(local, dict):
-                      resposta += f"- {local.get('name', 'Local não informado')} em {local.get('location', 'Localização não informada')}\n"
-                  else:
-                      resposta += f"- {local}\n"
-        return resposta
+        async def gerar_recomendacoes(self, dados_finais):
+            if dados_finais:
+                try:
+                    genai.configure(api_key='AIzaSyAyLDHhupk6bAIaXuSnRIDusM7zA7bmO9M')
+                    prompt = f"Baseado nos seguintes dados, gere recomendações: {dados_finais}"
+                    model = genai.GenerativeModel("gemini-1.5-flash")
+                    response = model.generate_content(prompt)
+                    resposta = "Aqui estão suas recomendações com Gemini:\n"
+                    for chunk in response:
+                        resposta += chunk.text.replace('*', '').replace('**', '').replace('##', '')
+                        if resposta[-1] in [".", ":"]:
+                            resposta += '\n'
+                    
+                    resposta_html = ''.join([f'<p>{paragrafo.strip()}</p>' for paragrafo in resposta.split('\n') if paragrafo.strip()])
+                    return Markup(resposta_html)
+                
+                except Exception as e:
+                    return Markup(f"Ocorreu um erro ao gerar recomendações: {str(e)}")
 
-    def gerar_resposta_com_gemini(self, cidade, preferencias):
-        locais = self.coletar_informacoes(cidade, preferencias)
-        input_text = f"Ajeita essas recomendações de locais na cidade: {cidade}, recomendações: {', '.join(locais)}. O usuário gostaria de experimentar {', '.join(preferencias)}."
-        
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        response = model.generate_content(input_text, stream=True)
+            else:
+                return Markup("Nenhum dado recebido para gerar recomendações.")
 
-        resposta = "Aqui estão suas recomendações com Gemini:\n"
-        for chunk in response:
-            resposta += chunk.text.replace('*', '').replace('**', '').replace('##', '')
-            if resposta[-1] in [".", ":"]:
-                resposta += '\n'
-        
-        resposta_html = ''.join([f'<p>{paragrafo.strip()}</p>' for paragrafo in resposta.split('\n') if paragrafo.strip()])
-    
-        return Markup(resposta_html)
+
+    async def setup(self):
+        coordenador_behaviour = self.CoordenadorBehaviour()
+        template = Template()
+        template.set_metadata("performative", "inform")
+        template.set_metadata("thread", "coordenador_request")
+        self.add_behaviour(coordenador_behaviour, template)
+
