@@ -294,11 +294,9 @@ class AgenteCoordenador(Agent):
             else:
                 return Markup("Nenhum dado recebido para gerar recomendações.")
 
-
     async def setup(self):
         coordenador_behaviour = self.CoordenadorBehaviour()
         template = Template()
         template.set_metadata("performative", "inform")
         template.set_metadata("thread", "coordenador_request")
         self.add_behaviour(coordenador_behaviour, template)
-

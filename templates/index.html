@@ -5,10 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TripAI</title>
     <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
     <div class="chat-container">
-        <div class="chat-box">
+        <div class="chat-box" id="chat-box">
             {% for message in messages %}
                 <div class="message {% if message.sender == 'user' %}right{% else %}left{% endif %}">
                     {{ message.text }}
@@ -16,10 +17,38 @@
             {% endfor %}
         </div>
         
-        <form action="/submit" method="POST" class="input-box">
+        <form id="chat-form" class="input-box">
             <input type="text" id="user_input" name="user_input" placeholder="Digite sua mensagem..." required>
             <button type="submit">Enviar</button>
         </form>
     </div>
+
+    <script>
+        $(document).ready(function() {
+            $('#chat-form').on('submit', function(e) {
+                e.preventDefault();
+
+                var userInput = $('#user_input').val();
+
+                $.ajax({
+                    url: '/submit',
+                    method: 'POST',
+                    data: { user_input: userInput },
+                    success: function(response) {
+                        $('#chat-box').append('<div class="message right">' + userInput + '</div>');
+
+                        $('#chat-box').append('<div class="message left">' + response.text + '</div>');
+
+                        $('#user_input').val('');
+
+                        $('#chat-box').scrollTop($('#chat-box')[0].scrollHeight);
+                    },
+                    error: function() {
+                        alert("Ocorreu um erro ao enviar a mensagem. Tente novamente.");
+                    }
+                });
+            });
+        });
+    </script>
 </body>
 </html>
