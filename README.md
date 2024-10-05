@@ -18,6 +18,30 @@ Diga o seu destino e nós iremos recomendar lugares que combinam com você! Este
 #### Configurar o ambiente de trabalho
 
 Para configurar o ambiente de trabalho pela primeira vez, utilizar os seguintes comandos:
+```
+# 0.0. Instale o Prosody: servidor para comunicação entre os agentes
+
+- No Linux
+pip install aioxmpp
+sudo apt install prosody
+sudo nano /etc/prosody/prosody.cfg.lua
+
+# 0.1. Instale os agentes do sistema
+
+prosodyctl adduser agente_coordenador@localhost
+prosodyctl adduser agente_atlas_obscura@localhost
+prosodyctl adduser agente_yelp@localhost
+prosodyctl adduser agente_foursquare@localhost
+prosodyctl adduser agente_cidade_brasil@localhost
+prosodyctl adduser agente_processor@localhost
+
+# 0.2. Inicie o servidor Prosody
+
+sudo service prosody start
+
+Se necessário, confirme se todos os agentes estão conectados e escutando o canal do servidor:
+sudo lsof -i -P -n | grep prosody
+```
 
 ```
 # 1. Instalar o pacote do ambiente virtual
