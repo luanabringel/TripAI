@@ -1,21 +1,16 @@
-from flask import Flask, render_template, request, redirect, url_for
-from api_backend.recomendacoes import *
+from flask import Flask, render_template, request, jsonify
+from api_backend.recomendacoes import AgenteCoordenador, AgenteAtlasObscura, AgenteCidadeBrasil, AgenteFoursquare, AgenteProcessorTexto, AgenteYelp, genai
+import asyncio
+import api_backend.config as config
 
 app = Flask(__name__)
-agente_processor = AgenteProcessorTexto()
-agente_yelp = AgenteYelp(yelp_api_key='EVcoTuv6Im8ApisNLkhYcG68F0U1-9PhtC9FYuXQEhGcs9wxs5dAUDptJVcCQKci8lKmT96IavnLb-n_KCh8GXP3EiBC1pFLeLoJW2fBceq_Ln0CzbHBVcaLU-X4ZnYx',
-                             opencage_api_key='755a7d3d5d8743728e809342a7291d5a')
-agente_foursquare = AgenteFoursquare(foursquare_api_key='fsq3MZABriF086Ggov3imwdz1lULdW/uvYXFiwr/Rz9pmOo=')
-agente_cidade_brasil = AgenteCidadeBrasil()
-agente_atlas_obscura = AgenteAtlasObscura()
-genai.configure(api_key='AIzaSyAyLDHhupk6bAIaXuSnRIDusM7zA7bmO9M')
 
-coordenador = AgenteCoordenador({
-    'Yelp': agente_yelp,
-    'Foursquare': agente_foursquare,
-    'Cidade Brasil': agente_cidade_brasil,
-    'Atlas Obscura': agente_atlas_obscura
-})
+coordenador = AgenteCoordenador("agente_coordenador@localhost", "123456")
+agente_atlas_obscura = AgenteAtlasObscura("agente_atlas_obscura@localhost", "123456")
+agente_yelp = AgenteYelp("agente_yelp@localhost", "123456")
+agente_foursquare = AgenteFoursquare("agente_foursquare@localhost", "123456")
+agente_cidade_brasil = AgenteCidadeBrasil("agente_cidade_brasil@localhost", "123456")
+agente_processor = AgenteProcessorTexto("agente_processor@localhost", "123456")
 
 messages = []
 
@@ -24,15 +19,33 @@ def index():
     return render_template('index.html', messages=messages)
 
 @app.route('/submit', methods=['POST'])
-def submit():
+async def submit():
     user_input = request.form.get('user_input')
+
     if user_input:
         messages.append({"sender": "user", "text": user_input})
-        local, recomendacoes = agente_processor.processar_texto(user_input)
-        resposta_gemini = coordenador.gerar_resposta_com_gemini(local, recomendacoes)
-        messages.append({"sender": "bot", "text": resposta_gemini})
-    return redirect(url_for('index'))
+
+        agente_processor.texto_param = user_input
+
+        await coordenador.start(auto_register=True)
+        await agente_atlas_obscura.start(auto_register=True)
+        await agente_yelp.start(auto_register=True)
+        await agente_foursquare.start(auto_register=True)
+        await agente_cidade_brasil.start(auto_register=True)
+        await agente_processor.start(auto_register=True)
+
+        await asyncio.sleep(5)
+    
+        await agente_processor.stop()
+        await agente_yelp.stop()
+        await agente_foursquare.stop()
+        await agente_cidade_brasil.stop()
+        await agente_atlas_obscura.stop()
+        await coordenador.stop()
+
+        return jsonify({"text": config.resposta_gerada})
+
+    return jsonify({"text": "Entrada de usuário inválida"}), 400
 
 if __name__ == '__main__':
     app.run(debug=True)
-    
